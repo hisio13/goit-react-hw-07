@@ -1,4 +1,4 @@
-import { createSlice, createSelector } from '@reduxjs/toolkit';
+import { createSlice, isAnyOf, createSelector } from '@reduxjs/toolkit';
 import { fetchContacts, addContact, deleteContact } from './contactsOps';
 import { selectNameFilter } from './filtersSlice';
 
@@ -9,56 +9,49 @@ const contactsSlice = createSlice({
     loading: false,
     error: null,
   },
-  extraReducers: builder => {
+  extraReducers: builder =>
     builder
-      .addCase(fetchContacts.pending, (state) => {
+      .addCase(fetchContacts.fulfilled, (state, action) => {
+        state.items = action.payload;
+      })
+      .addCase(addContact.fulfilled, (state, action) => {
+        state.items.push(action.payload);
+      })
+      .addCase(deleteContact.fulfilled, (state, action) => {
+        state.items = state.items.filter(contact => contact.id !== action.payload.id);
+      })
+      .addMatcher(isAnyOf(fetchContacts.pending, addContact.pending, deleteContact.pending), state => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(fetchContacts.fulfilled, (state, action) => {
-        state.loading = false;
-        state.items = action.payload;
-      })
-      .addCase(fetchContacts.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || 'Failed to load contacts';
-      })
-      .addCase(addContact.pending, (state) => {
-        state.loading = true;
-      })
-      .addCase(addContact.fulfilled, (state, action) => {
-        state.loading = false;
-        state.items.push(action.payload);
-      })
-      .addCase(addContact.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || 'Failed to add contact';
-      })
-      .addCase(deleteContact.pending, (state) => {
-        state.loading = true;
-      })
-      .addCase(deleteContact.fulfilled, (state, action) => {
-        state.loading = false;
-        state.items = state.items.filter(c => c.id !== action.payload.id);
-      })
-      .addCase(deleteContact.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || 'Failed to delete contact';
-      });
-  },
+      .addMatcher(
+        isAnyOf(fetchContacts.rejected, addContact.rejected, deleteContact.rejected),
+        (state, action) => {
+          state.loading = false;
+          state.error = action.payload;
+        }
+      )
+      .addMatcher(
+        isAnyOf(fetchContacts.fulfilled, addContact.fulfilled, deleteContact.fulfilled),
+        state => {
+          state.loading = false;
+        }
+      ),
 });
 
-export const selectContacts = (state) => state.contacts.items;
-export const selectLoading = (state) => state.contacts.loading;
-export const selectError = (state) => state.contacts.error;
+// ===== Селектори =====
+export const selectContacts = state => state.contacts.items;
+export const selectLoading = state => state.contacts.loading;
+export const selectError = state => state.contacts.error;
 
+// ===== Мемоізований селектор для фільтрації =====
 export const selectFilteredContacts = createSelector(
   [selectContacts, selectNameFilter],
-  (contacts, filter) =>
-    contacts.filter(contact =>
+  (contacts, filter) => {
+    return contacts.filter(contact =>
       contact.name.toLowerCase().includes(filter.toLowerCase())
-    )
+    );
+  }
 );
 
 export default contactsSlice.reducer;
-
